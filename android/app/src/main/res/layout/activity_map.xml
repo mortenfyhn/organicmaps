@@ -29,7 +29,7 @@
       android:layout_height="wrap_content"
       android:layout_alignParentTop="true"
       android:layout_centerHorizontal="true"
-      android:layout_marginTop="@dimen/nav_frame_padding" />
+      android:layout_marginTop="@dimen/margin_double_plus" />
     <include
       android:id="@+id/position_chooser"
       layout="@layout/position_chooser" />

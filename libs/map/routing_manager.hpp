@@ -38,6 +38,8 @@ class CountryInfoGetter;
 namespace routing
 {
 class NumMwmIds;
+// Defined in routing_manager.cpp; finds the speed limit of the road nearest to a point.
+class SpeedLimitFinder;
 }
 
 class DataSource;
@@ -111,6 +113,8 @@ public:
   using RouteRecommendCallback = std::function<void(Recommendation)>;
 
   RoutingManager(Callbacks && callbacks, Delegate & delegate);
+  // Out-of-line so the forward-declared SpeedLimitFinder member can be destroyed here.
+  ~RoutingManager();
   void Init(std::shared_ptr<routing::NumMwmIds> ptr);
 
   void SetBookmarkManager(BookmarkManager * bmManager);
@@ -131,6 +135,11 @@ public:
   void BuildRoute(uint32_t timeoutSec = routing::RouterDelegate::kNoTimeout);
   void SetUserCurrentPosition(m2::PointD const & position);
   void ResetRoutingSession() { m_routingSession.Reset(); }
+
+  // Returns the speed limit (m/s) of the road nearest to |point|, or a negative value if there is
+  // no nearby road or it has no maxspeed data. Not tied to an active route; lazily builds a car
+  // road graph on first use. Reads map features, so call it off the UI thread.
+  double GetSpeedLimitMps(m2::PointD const & point);
   // FollowRoute has a bug where the router follows the route even if the method hads't been called.
   // This method was added because we do not want to break the behaviour that is familiar to our
   // users.
@@ -380,6 +389,9 @@ private:
 
   std::shared_ptr<routing::NumMwmIds> m_numMwmIDs;
   std::shared_ptr<m4::Tree<routing::NumMwmId>> m_numMwmTree;
+
+  // Lazily created on first GetSpeedLimitMps() call.
+  std::unique_ptr<routing::SpeedLimitFinder> m_speedLimitFinder;
 
   TransitReadManager * m_transitReadManager = nullptr;
 

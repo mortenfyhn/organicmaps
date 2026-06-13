@@ -1281,6 +1281,14 @@ JNIEXPORT jint Java_app_organicmaps_sdk_Framework_nativeGetSpeedCamManagerMode(J
   return static_cast<jint>(frm()->GetRoutingManager().GetSpeedCamManager().GetMode());
 }
 
+// Returns the speed limit (m/s) of the road nearest to the given coordinates, or a negative value
+// if there is no nearby road or it has no maxspeed data. Reads map features; call off the UI thread.
+JNIEXPORT jdouble Java_app_organicmaps_sdk_Framework_nativeGetSpeedLimitMps(JNIEnv * env, jclass, jdouble lat,
+                                                                           jdouble lon)
+{
+  return frm()->GetRoutingManager().GetSpeedLimitMps(mercator::FromLatLon(lat, lon));
+}
+
 JNIEXPORT jobject Java_app_organicmaps_sdk_Framework_nativeGetRouteFollowingInfo(JNIEnv * env, jclass)
 {
   RoutingManager & rm = frm()->GetRoutingManager();

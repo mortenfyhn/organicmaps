@@ -4,11 +4,19 @@
 
 #include "routing/absent_regions_finder.hpp"
 #include "routing/checkpoint_predictor.hpp"
+#include "routing/data_source.hpp"
+#include "routing/features_road_graph.hpp"
 #include "routing/index_router.hpp"
+#include "routing/maxspeeds.hpp"
 #include "routing/route.hpp"
 #include "routing/routing_callbacks.hpp"
 #include "routing/ruler_router.hpp"
 #include "routing/speed_camera.hpp"
+
+#include "routing_common/car_model.hpp"
+#include "routing_common/maxspeed_conversion.hpp"
+
+#include "platform/measurement_utils.hpp"
 
 #include "storage/country_info_getter.hpp"
 #include "storage/routing_helpers.hpp"
@@ -44,6 +52,92 @@
 #include <map>
 
 using namespace routing;
+
+namespace routing
+{
+// Finds the maxspeed of the road nearest to a point, reusing the same nearest-edge snapping
+// (FeaturesRoadGraph::FindClosestEdges) that route building uses to attach checkpoints to roads.
+// Built once for the car model and kept warm; not tied to an active routing session.
+class SpeedLimitFinder
+{
+public:
+  SpeedLimitFinder(DataSource & dataSource, std::shared_ptr<NumMwmIds> numMwmIDs,
+                   CountryParentNameGetterFn const & countryParentNameGetter)
+    : m_dataSource(dataSource)
+    , m_routingDataSource(dataSource, std::move(numMwmIDs))
+    , m_roadGraph(m_routingDataSource, IRoadGraph::Mode::ObeyOnewayTag,
+                  std::make_shared<CarModelFactory>(countryParentNameGetter))
+  {}
+
+  double GetSpeedLimitMps(m2::PointD const & point)
+  {
+    auto const rect = mercator::RectByCenterXYAndSizeInMeters(point, FeaturesRoadGraphBase::kClosestEdgesRadiusM);
+    std::vector<std::pair<Edge, geometry::PointWithAltitude>> vicinities;
+    m_roadGraph.FindClosestEdges(rect, kEdgesCount, vicinities);
+
+    std::optional<Edge> bestEdge;
+    double bestDistM = kMaxSnapDistanceM;
+    for (auto const & [edge, projection] : vicinities)
+    {
+      if (!edge.GetFeatureId().IsValid())
+        continue;
+      double const distM = mercator::DistanceOnEarth(point, projection.GetPoint());
+      if (distM < bestDistM)
+      {
+        bestDistM = distM;
+        bestEdge = edge;
+      }
+    }
+    // No road within a sensible snapping distance (e.g. on water): no speed limit to show.
+    if (!bestEdge)
+      return -1.0;
+
+    FeatureID const & fid = bestEdge->GetFeatureId();
+    Maxspeeds const * maxspeeds = GetMaxspeeds(fid.m_mwmId);
+    if (maxspeeds == nullptr)
+      return -1.0;
+
+    Maxspeed const speed = maxspeeds->GetMaxspeed(fid.m_index);
+    if (!speed.IsValid())
+      return -1.0;
+
+    // Prefer the direction of travel; fall back to forward for one-way roads or missing backward.
+    bool useForward = bestEdge->IsForward();
+    if (useForward ? speed.GetForward() == kInvalidSpeed : speed.GetBackward() == kInvalidSpeed)
+      useForward = true;
+
+    MaxspeedType const raw = useForward ? speed.GetForward() : speed.GetBackward();
+    if (raw == kInvalidSpeed || raw == kNoneMaxSpeed)
+      return -1.0;
+
+    MaxspeedType const kmph = useForward ? speed.GetForwardKmPH() : speed.GetBackwardKmPH();
+    return measurement_utils::KmphToMps(kmph);
+  }
+
+private:
+  Maxspeeds const * GetMaxspeeds(MwmSet::MwmId const & mwmId)
+  {
+    auto it = m_maxspeedsCache.find(mwmId);
+    if (it == m_maxspeedsCache.end())
+    {
+      auto handle = m_dataSource.GetMwmHandleById(mwmId);
+      std::unique_ptr<Maxspeeds> loaded = handle.IsAlive() ? LoadMaxspeeds(handle) : nullptr;
+      it = m_maxspeedsCache.emplace(mwmId, std::move(loaded)).first;
+    }
+    return it->second.get();
+  }
+
+  // GPS-to-road distance beyond which we assume we are not on a road (tighter than the 150 m
+  // FindClosestEdges search radius, to avoid snapping to a road while on nearby water/parallel paths).
+  static double constexpr kMaxSnapDistanceM = 30.0;
+  static uint32_t constexpr kEdgesCount = 5;
+
+  DataSource & m_dataSource;
+  MwmDataSource m_routingDataSource;
+  FeaturesRoadGraph m_roadGraph;
+  std::map<MwmSet::MwmId, std::unique_ptr<Maxspeeds>> m_maxspeedsCache;
+};
+}  // namespace routing
 
 namespace route_points_json
 {
@@ -402,6 +496,8 @@ RoutingManager::RoutingManager(Callbacks && callbacks, Delegate & delegate)
     });
   });
 }
+
+RoutingManager::~RoutingManager() = default;
 
 void RoutingManager::SetBookmarkManager(BookmarkManager * bmManager)
 {
@@ -1345,6 +1441,16 @@ void RoutingManager::SetUserCurrentPosition(m2::PointD const & position)
       CancelRecommendation(Recommendation::RebuildAfterPointsLoading);
     }
   }
+}
+
+double RoutingManager::GetSpeedLimitMps(m2::PointD const & point)
+{
+  if (!m_speedLimitFinder)
+  {
+    m_speedLimitFinder = std::make_unique<SpeedLimitFinder>(m_callbacks.m_dataSourceGetter(), m_numMwmIDs,
+                                                            m_callbacks.m_countryParentNameGetterFn);
+  }
+  return m_speedLimitFinder->GetSpeedLimitMps(point);
 }
 
 static std::string GetNameFromPoint(RouteMarkData const & rmd)

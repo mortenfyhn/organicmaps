@@ -44,6 +44,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -91,6 +92,7 @@ import app.organicmaps.sdk.downloader.UpdateInfo;
 import app.organicmaps.sdk.editor.Editor;
 import app.organicmaps.sdk.editor.OsmOAuth;
 import app.organicmaps.sdk.location.LocationHelper;
+import app.organicmaps.sdk.widgets.speedlimit.SpeedLimitView;
 import app.organicmaps.sdk.location.LocationListener;
 import app.organicmaps.sdk.location.LocationState;
 import app.organicmaps.sdk.location.LocationUtils;
@@ -126,6 +128,8 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MwmActivity extends BaseMwmFragmentActivity
     implements PlacePageActivationListener, MapRenderingListener, RoutingController.Container, LocationListener,
@@ -165,7 +169,13 @@ public class MwmActivity extends BaseMwmFragmentActivity
   private TextView mDrivingHudSpeed;
   @Nullable
   private TextView mDrivingHudUnits;
+  @Nullable
+  private SpeedLimitView mDrivingHudLimit;
   private boolean mDrivingHudEnabled;
+  // Speed-limit lookups read map features, so they run off the UI thread. One at a time.
+  @Nullable
+  private ExecutorService mSpeedLimitExecutor;
+  private boolean mSpeedLimitQueryInFlight;
 
   @Nullable
   private OnmapDownloader mOnmapDownloader;
@@ -601,7 +611,9 @@ public class MwmActivity extends BaseMwmFragmentActivity
     mDrivingHud = findViewById(R.id.driving_hud);
     mDrivingHudSpeed = findViewById(R.id.hud_speed_value);
     mDrivingHudUnits = findViewById(R.id.hud_speed_units);
+    mDrivingHudLimit = findViewById(R.id.hud_speed_limit);
     mDrivingHudEnabled = Config.isDrivingHudEnabled();
+    mSpeedLimitExecutor = Executors.newSingleThreadExecutor();
     refreshDrivingHud();
   }
 
@@ -638,9 +650,41 @@ public class MwmActivity extends BaseMwmFragmentActivity
   {
     if (mDrivingHud == null || !UiUtils.isVisible(mDrivingHud) || mDrivingHudSpeed == null || mDrivingHudUnits == null)
       return;
-    final Pair<String, String> speedAndUnits = StringUtils.nativeFormatSpeedAndUnits(location.getSpeed());
+    final double speedMps = location.getSpeed();
+    final Pair<String, String> speedAndUnits = StringUtils.nativeFormatSpeedAndUnits(speedMps);
     mDrivingHudSpeed.setText(speedAndUnits.first);
     mDrivingHudUnits.setText(speedAndUnits.second);
+    querySpeedLimit(location.getLatitude(), location.getLongitude(), speedMps);
+  }
+
+  // Looks up the current road's speed limit off the UI thread and applies it when ready.
+  // Skips if a query is already running so updates can't pile up.
+  private void querySpeedLimit(double lat, double lon, double speedMps)
+  {
+    if (mSpeedLimitExecutor == null || mSpeedLimitQueryInFlight)
+      return;
+    mSpeedLimitQueryInFlight = true;
+    mSpeedLimitExecutor.execute(() -> {
+      final double limitMps = Framework.nativeGetSpeedLimitMps(lat, lon);
+      runOnUiThread(() -> {
+        mSpeedLimitQueryInFlight = false;
+        applySpeedLimit(limitMps, speedMps);
+      });
+    });
+  }
+
+  private void applySpeedLimit(double limitMps, double speedMps)
+  {
+    if (mDrivingHudLimit == null || mDrivingHudSpeed == null)
+      return;
+    // Negative means no nearby road or no maxspeed data: just don't show a limit.
+    final boolean hasLimit = limitMps >= 0.0 && UiUtils.isVisible(mDrivingHud);
+    final boolean exceeded = hasLimit && speedMps > limitMps;
+    UiUtils.showIf(hasLimit, mDrivingHudLimit);
+    if (hasLimit)
+      mDrivingHudLimit.setSpeedLimit(StringUtils.nativeFormatSpeed(limitMps), exceeded);
+    mDrivingHudSpeed.setTextColor(exceeded ? ContextCompat.getColor(this, R.color.base_red)
+                                           : ThemeUtils.getColor(this, android.R.attr.textColorPrimary));
   }
 
   private void updateDrivingOptionCount()
@@ -1056,6 +1100,11 @@ public class MwmActivity extends BaseMwmFragmentActivity
     mPowerSaveSettings = null;
     if (mRemoveDisplayListener && !isChangingConfigurations())
       mDisplayManager.removeListener(DisplayType.Device);
+    if (mSpeedLimitExecutor != null)
+    {
+      mSpeedLimitExecutor.shutdown();
+      mSpeedLimitExecutor = null;
+    }
   }
 
   @Override

@@ -213,6 +213,10 @@ public class Framework
   @Nullable
   public static native RoutingInfo nativeGetRouteFollowingInfo();
 
+  // Speed limit (m/s) of the road nearest to the given coordinates, or a negative value if there is
+  // no nearby road or maxspeed data. Reads map features, so call it off the UI thread.
+  public static native double nativeGetSpeedLimitMps(double lat, double lon);
+
   @Nullable
   /// @param[in] maxDistM Max distance between points in meters.
   public static native JunctionInfo[] nativeGetRouteJunctionPoints(double maxDistM);
