@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Custom strings for local fork customizations.
+     Kept separate from the generated strings.xml so the translation tooling
+     (twine) does not overwrite them. -->
+<resources>
+  <string name="driving_hud_button">Speedometer</string>
+</resources>

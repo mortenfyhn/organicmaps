@@ -25,6 +25,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
+import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -156,6 +157,16 @@ public class MwmActivity extends BaseMwmFragmentActivity
   private Toolbar mPointChooserToolbar;
 
   private NavigationController mNavigationController;
+
+  // Glanceable speed overlay for the regular (non-navigation) map view.
+  @Nullable
+  private View mDrivingHud;
+  @Nullable
+  private TextView mDrivingHudSpeed;
+  @Nullable
+  private TextView mDrivingHudUnits;
+  private boolean mDrivingHudEnabled;
+
   @Nullable
   private OnmapDownloader mOnmapDownloader;
 
@@ -582,6 +593,54 @@ public class MwmActivity extends BaseMwmFragmentActivity
     // TrafficManager.INSTANCE.attach(mNavigationController);
     initOnmapDownloader();
     initPositionChooser();
+    initDrivingHud();
+  }
+
+  private void initDrivingHud()
+  {
+    mDrivingHud = findViewById(R.id.driving_hud);
+    mDrivingHudSpeed = findViewById(R.id.hud_speed_value);
+    mDrivingHudUnits = findViewById(R.id.hud_speed_units);
+    mDrivingHudEnabled = Config.isDrivingHudEnabled();
+    refreshDrivingHud();
+  }
+
+  private void toggleDrivingHud()
+  {
+    mDrivingHudEnabled = !mDrivingHudEnabled;
+    Config.setDrivingHudEnabled(mDrivingHudEnabled);
+    refreshDrivingHud();
+  }
+
+  // Shows the overlay only when enabled and not in route planning/navigation,
+  // where the dedicated navigation UI already displays speed.
+  private void refreshDrivingHud()
+  {
+    if (mDrivingHud == null)
+      return;
+    final RoutingController routing = RoutingController.get();
+    final boolean show = mDrivingHudEnabled && !routing.isPlanning() && !routing.isNavigating();
+    UiUtils.showIf(show, mDrivingHud);
+    if (!show || mDrivingHudSpeed == null || mDrivingHudUnits == null)
+      return;
+    // Populate immediately so the overlay isn't blank until the first location update.
+    final Location last = MwmApplication.from(this).getLocationHelper().getSavedLocation();
+    if (last != null)
+      updateDrivingHud(last);
+    else
+    {
+      mDrivingHudSpeed.setText("0");
+      mDrivingHudUnits.setText(StringUtils.nativeGetLocalizedSpeedUnits());
+    }
+  }
+
+  private void updateDrivingHud(@NonNull Location location)
+  {
+    if (mDrivingHud == null || !UiUtils.isVisible(mDrivingHud) || mDrivingHudSpeed == null || mDrivingHudUnits == null)
+      return;
+    final Pair<String, String> speedAndUnits = StringUtils.nativeFormatSpeedAndUnits(location.getSpeed());
+    mDrivingHudSpeed.setText(speedAndUnits.first);
+    mDrivingHudUnits.setText(speedAndUnits.second);
   }
 
   private void updateDrivingOptionCount()
@@ -731,6 +790,7 @@ public class MwmActivity extends BaseMwmFragmentActivity
       showBottomSheet(MAIN_MENU_ID);
     }
     case help -> showHelp();
+    case drivingHud -> toggleDrivingHud();
     case trackRecordingStatus -> toggleTrackRecordingPP();
     }
   }
@@ -1517,6 +1577,10 @@ public class MwmActivity extends BaseMwmFragmentActivity
   public void onLocationUpdated(@NonNull Location location)
   {
     dismissLocationErrorDialog();
+
+    // Keep the driving HUD in sync with both speed and routing-state changes.
+    refreshDrivingHud();
+    updateDrivingHud(location);
 
     final RoutingController routing = RoutingController.get();
     if (!routing.isNavigating())

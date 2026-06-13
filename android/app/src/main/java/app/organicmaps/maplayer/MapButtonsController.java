@@ -109,6 +109,7 @@ public class MapButtonsController extends Fragment
     mBottomButtonsFrame = mFrame.findViewById(R.id.map_buttons_bottom);
 
     final FloatingActionButton helpButton = mFrame.findViewById(R.id.help_button);
+    final FloatingActionButton hudButton = mFrame.findViewById(R.id.hud_button);
     final View zoomFrame = mFrame.findViewById(R.id.zoom_buttons_container);
     mFrame.findViewById(R.id.nav_zoom_in)
         .setOnClickListener((v) -> mMapButtonClickListener.onMapButtonClick(MapButtons.zoomIn));
@@ -150,6 +151,8 @@ public class MapButtonsController extends Fragment
     }
     if (helpButton != null)
       helpButton.setOnClickListener((v) -> mMapButtonClickListener.onMapButtonClick(MapButtons.help));
+    if (hudButton != null)
+      hudButton.setOnClickListener((v) -> mMapButtonClickListener.onMapButtonClick(MapButtons.drivingHud));
 
     mSearchWheel =
         new SearchWheel(mFrame,
@@ -173,6 +176,8 @@ public class MapButtonsController extends Fragment
       mButtonsMap.put(MapButtons.menu, menuButton);
     if (helpButton != null)
       mButtonsMap.put(MapButtons.help, helpButton);
+    if (hudButton != null)
+      mButtonsMap.put(MapButtons.drivingHud, hudButton);
     if (mTrackRecordingStatusButton != null)
       mButtonsMap.put(MapButtons.trackRecordingStatus, mTrackRecordingStatusButton);
     showButton(false, MapButtons.trackRecordingStatus);
@@ -523,6 +528,7 @@ public class MapButtonsController extends Fragment
     bookmarks,
     menu,
     help,
+    drivingHud,
     trackRecordingStatus
   }
 

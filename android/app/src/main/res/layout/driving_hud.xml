@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glanceable speed (and, later, speed-limit) overlay for the regular map view.
+     Toggled by the hud_button; updated from MwmActivity.onLocationUpdated. -->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:id="@+id/driving_hud"
+  android:layout_width="wrap_content"
+  android:layout_height="wrap_content"
+  android:background="@drawable/bg_driving_hud"
+  android:gravity="center"
+  android:minWidth="72dp"
+  android:orientation="vertical"
+  android:paddingHorizontal="@dimen/margin_base"
+  android:paddingVertical="@dimen/margin_half"
+  android:visibility="gone">
+  <TextView
+    android:id="@+id/hud_speed_value"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:textColor="?android:attr/textColorPrimary"
+    android:textSize="28sp"
+    android:textStyle="bold"
+    tools:text="60" />
+  <TextView
+    android:id="@+id/hud_speed_units"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:textColor="?android:attr/textColorSecondary"
+    android:textSize="12sp"
+    tools:text="km/h" />
+</LinearLayout>

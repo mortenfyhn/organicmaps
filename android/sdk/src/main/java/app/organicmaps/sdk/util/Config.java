@@ -40,6 +40,7 @@ public final class Config
   private static final String KEY_MISC_USE_MOBILE_DATA_TIMESTAMP = "UseMobileDataTimestamp";
   private static final String KEY_MISC_USE_MOBILE_DATA_ROAMING = "UseMobileDataRoaming";
   private static final String KEY_MISC_KEEP_SCREEN_ON = "KeepScreenOn";
+  private static final String KEY_MISC_DRIVING_HUD = "DrivingHud";
 
   private static final String KEY_MISC_SHOW_ON_LOCK_SCREEN = "ShowOnLockScreen";
   private static final String KEY_MISC_AGPS_TIMESTAMP = "AGPSTimestamp";
@@ -203,6 +204,16 @@ public final class Config
   public static void setKeepScreenOnEnabled(boolean enabled)
   {
     setBool(KEY_MISC_KEEP_SCREEN_ON, enabled);
+  }
+
+  public static boolean isDrivingHudEnabled()
+  {
+    return getBool(KEY_MISC_DRIVING_HUD, false);
+  }
+
+  public static void setDrivingHudEnabled(boolean enabled)
+  {
+    setBool(KEY_MISC_DRIVING_HUD, enabled);
   }
 
   public static boolean isShowOnLockScreenEnabled()
