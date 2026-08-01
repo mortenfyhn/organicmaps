@@ -1,5 +1,6 @@
 package app.organicmaps.bookmarks;
 
+import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.location.Location;
@@ -9,6 +10,7 @@ import android.view.View;
 import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.TextView;
+import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.PluralsRes;
@@ -280,6 +282,8 @@ public class Holders
     CheckBox mVisibilityMarker;
     @NonNull
     ImageView mMoreButton;
+    @Nullable
+    private final ColorStateList mDefaultVisibilityTint;
 
     CategoryViewHolder(@NonNull View root)
     {
@@ -287,11 +291,31 @@ public class Holders
       mName = root.findViewById(R.id.name);
       mVisibilityMarker = root.findViewById(R.id.checkbox);
       mMoreButton = root.findViewById(R.id.more);
+      mDefaultVisibilityTint = mVisibilityMarker.getButtonTintList();
     }
 
     void setVisibilityState(boolean visible)
     {
       mVisibilityMarker.setChecked(visible);
+    }
+
+    /**
+     * Tints the visibility eye with the list's own bookmark color so the screen shows at a glance
+     * which lists have one. Pass 0 for a list that has no color of its own.
+     */
+    void setColor(@ColorInt int color)
+    {
+      if (color == 0 || mDefaultVisibilityTint == null)
+      {
+        mVisibilityMarker.setButtonTintList(mDefaultVisibilityTint);
+        return;
+      }
+
+      // Reuse the theme's unchecked color so a hidden list still reads as hidden.
+      final int hidden =
+          mDefaultVisibilityTint.getColorForState(new int[] {}, mDefaultVisibilityTint.getDefaultColor());
+      mVisibilityMarker.setButtonTintList(new ColorStateList(
+          new int[][] {new int[] {android.R.attr.state_checked}, new int[] {}}, new int[] {color, hidden}));
     }
 
     void setVisibilityListener(@Nullable View.OnClickListener listener)
