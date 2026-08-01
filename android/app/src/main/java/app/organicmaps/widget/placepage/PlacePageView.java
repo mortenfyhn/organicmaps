@@ -693,8 +693,9 @@ public class PlacePageView extends Fragment
       BookmarkCategory previousCategory = BookmarkManager.INSTANCE.getCategoryById(bookmark.getCategoryId());
       if (previousCategory == newCategory)
         return;
-      mTvCategory.setText(newCategory.getName());
       bookmark.setCategoryId(newCategory.getId());
+      // Redraws the name and the color icon, which the move may have changed.
+      refreshCategoryPreview();
     }
   }
 

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tinted at runtime to show a list's bookmark color next to the color button. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@android:color/white" />
+    <size
+        android:width="@dimen/margin_base"
+        android:height="@dimen/margin_base" />
+</shape>

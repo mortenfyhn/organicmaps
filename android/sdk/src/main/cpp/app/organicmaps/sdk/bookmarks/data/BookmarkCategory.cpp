@@ -211,6 +211,16 @@ JNIEXPORT void Java_app_organicmaps_sdk_bookmarks_data_BookmarkCategory_nativeSe
       static_cast<kml::MarkGroupId>(catId), dp::Color::FromARGB(static_cast<uint32_t>(color)));
 }
 
+// Returns 0 (fully transparent, never a valid list color) when the list has no color of its own.
+JNIEXPORT jint Java_app_organicmaps_sdk_bookmarks_data_BookmarkCategory_nativeGetCategoryBookmarksColor(JNIEnv *,
+                                                                                                        jclass,
+                                                                                                        jlong catId)
+{
+  auto const & data = frm()->GetBookmarkManager().GetCategoryData(static_cast<kml::MarkGroupId>(catId));
+  auto const color = kml::GetCategoryBookmarksColor(data.m_properties);
+  return color ? static_cast<jint>(color->GetARGB()) : 0;
+}
+
 JNIEXPORT void Java_app_organicmaps_sdk_bookmarks_data_BookmarkCategory_nativeSetCategoryTracksCustomColor(JNIEnv *,
                                                                                                            jclass,
                                                                                                            jlong catId,

@@ -31,6 +31,11 @@ internal sealed interface EditTarget {
 
     fun isDirty(newName: String, newDescription: String, category: BookmarkCategory): Boolean
 
+    /**
+     * The color this target takes on moving into [category], or null if the move leaves it alone.
+     */
+    fun colorForCategory(category: BookmarkCategory): Int?
+
     fun save(newName: String, newDescription: String, category: BookmarkCategory): Boolean
 
     fun delete()
@@ -58,6 +63,9 @@ internal class BookmarkEditTarget(private val info: BookmarkInfo) : EditTarget {
             newDescription != info.description ||
             category.id != info.categoryId ||
             color != info.icon.argb()
+
+    override fun colorForCategory(category: BookmarkCategory): Int? =
+        category.categoryBookmarksColor.takeIf { it != 0 }
 
     override fun save(newName: String, newDescription: String, category: BookmarkCategory): Boolean {
         val movedFromCategory = info.categoryId != category.id
@@ -91,6 +99,9 @@ internal class TrackEditTarget(private val data: Track) : EditTarget {
             newDescription != data.description ||
             category.id != data.categoryId ||
             color != data.color
+
+    // Lists only carry a color for their bookmarks, so moving a track never recolors it.
+    override fun colorForCategory(category: BookmarkCategory): Int? = null
 
     override fun save(newName: String, newDescription: String, category: BookmarkCategory): Boolean {
         val movedFromCategory = data.categoryId != category.id

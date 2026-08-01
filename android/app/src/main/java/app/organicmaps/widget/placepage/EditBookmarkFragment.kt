@@ -245,6 +245,13 @@ class EditBookmarkFragment :
     override fun onCategoryChanged(newCategory: BookmarkCategory) {
         bookmarkCategory = newCategory
         refreshCategory()
+        // Saving into a list that has its own color recolors the bookmark, so show that now
+        // instead of leaving the swatch on the color it had in the previous list.
+        val t = target ?: return
+        t.colorForCategory(newCategory)?.let { listColor ->
+            t.color = listColor
+            refreshSwatch()
+        }
     }
 
     private enum class TargetKind { BOOKMARK, TRACK }

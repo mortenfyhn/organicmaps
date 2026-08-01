@@ -95,6 +95,11 @@ public class Bookmark extends MapObject
       return;
     nativeChangeCategory(mCategoryId, catId, mBookmarkId);
     mCategoryId = catId;
+    // A list can define the color of the bookmarks it holds, so the move may have recolored this
+    // one. Re-read it instead of leaving the cached icon on the previous list's color.
+    final BookmarkInfo info = BookmarkManager.INSTANCE.getBookmarkInfo(mBookmarkId);
+    if (info != null)
+      mIcon = info.getIcon();
   }
 
   public void setIconColor(@ColorInt int color)

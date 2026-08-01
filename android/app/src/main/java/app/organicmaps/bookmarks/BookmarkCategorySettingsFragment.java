@@ -1,5 +1,6 @@
 package app.organicmaps.bookmarks;
 
+import android.content.res.ColorStateList;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -17,6 +18,7 @@ import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.MenuProvider;
+import androidx.core.widget.TextViewCompat;
 import app.organicmaps.R;
 import app.organicmaps.base.BaseMwmToolbarFragment;
 import app.organicmaps.sdk.bookmarks.data.BookmarkCategory;
@@ -58,19 +60,11 @@ public class BookmarkCategorySettingsFragment
 
   @SuppressWarnings("NotNullFieldNotInitialized")
   @NonNull
-  private View mColorBookmarksBtn;
+  private TextView mColorBookmarksBtn;
 
   @SuppressWarnings("NotNullFieldNotInitialized")
   @NonNull
   private View mColorTracksBtn;
-
-  @SuppressWarnings("NotNullFieldNotInitialized")
-  @NonNull
-  private View mColorSectionDivider;
-
-  @SuppressWarnings("NotNullFieldNotInitialized")
-  @NonNull
-  private View mColorSectionSpacer;
 
   @NonNull
   private final MenuProvider mMenuProvider = new MenuProvider() {
@@ -164,26 +158,34 @@ public class BookmarkCategorySettingsFragment
 
     mColorBookmarksBtn = root.findViewById(R.id.color_bookmarks_btn);
     mColorBookmarksBtn.setOnClickListener(v -> showBookmarkColorPicker());
+    updateBookmarksColorSwatch();
     mColorTracksBtn = root.findViewById(R.id.color_tracks_btn);
     mColorTracksBtn.setOnClickListener(v -> showTrackColorPicker());
-    mColorSectionDivider = root.findViewById(R.id.color_section_divider);
-    mColorSectionSpacer = root.findViewById(R.id.color_section_spacer);
-
-    updateColorButtonsVisibility();
+    updateTracksColorButtonVisibility();
   }
 
-  private void updateColorButtonsVisibility()
+  private void updateTracksColorButtonVisibility()
   {
     final BookmarkCategory category = BookmarkManager.INSTANCE.getCategoryById(mCategory.getId());
-    final int bookmarksCount = category.getBookmarksCount();
     final int tracksCount = category.getTracksCount();
 
-    mColorBookmarksBtn.setVisibility(bookmarksCount > 0 ? View.VISIBLE : View.GONE);
+    // The bookmarks button also sets the color of bookmarks added later, so it stays available on
+    // an empty list. The tracks button is a one-shot recolor and has nothing to act on.
     mColorTracksBtn.setVisibility(tracksCount > 0 ? View.VISIBLE : View.GONE);
+  }
 
-    final boolean hasContent = bookmarksCount > 0 || tracksCount > 0;
-    mColorSectionDivider.setVisibility(hasContent ? View.VISIBLE : View.GONE);
-    mColorSectionSpacer.setVisibility(hasContent ? View.VISIBLE : View.GONE);
+  private void updateBookmarksColorSwatch()
+  {
+    @ColorInt
+    final int color = mCategory.getCategoryBookmarksColor();
+    if (color == 0)
+    {
+      mColorBookmarksBtn.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+      return;
+    }
+
+    mColorBookmarksBtn.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.shape_color_swatch, 0);
+    TextViewCompat.setCompoundDrawableTintList(mColorBookmarksBtn, ColorStateList.valueOf(color));
   }
 
   private void onEditDoneClicked()
@@ -259,7 +261,10 @@ public class BookmarkCategorySettingsFragment
   private void showBookmarkColorPicker()
   {
     mPickingTracksColor = false;
-    ColorPickerFragment.show(getChildFragmentManager(), BookmarkManager.INSTANCE.getLastEditedColor());
+    @ColorInt
+    final int listColor = mCategory.getCategoryBookmarksColor();
+    ColorPickerFragment.show(getChildFragmentManager(),
+                             listColor != 0 ? listColor : BookmarkManager.INSTANCE.getLastEditedColor());
   }
 
   private void showTrackColorPicker()
@@ -279,6 +284,7 @@ public class BookmarkCategorySettingsFragment
     else
     {
       mCategory.setCategoryBookmarksColor(color);
+      updateBookmarksColorSwatch();
       Toast.makeText(requireContext(), R.string.toast_bookmarks_color_changed, Toast.LENGTH_SHORT).show();
     }
   }
@@ -286,6 +292,6 @@ public class BookmarkCategorySettingsFragment
   private void onCategoriesChanged()
   {
     if (getView() != null)
-      updateColorButtonsVisibility();
+      updateTracksColorButtonVisibility();
   }
 }

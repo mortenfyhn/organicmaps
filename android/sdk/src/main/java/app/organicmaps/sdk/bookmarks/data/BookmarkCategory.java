@@ -137,6 +137,15 @@ public final class BookmarkCategory implements Parcelable
     nativeSetCategoryBookmarksColor(mId, color);
   }
 
+  /**
+   * The color given to bookmarks added to this list, or 0 if the list has no color of its own.
+   */
+  @ColorInt
+  public int getCategoryBookmarksColor()
+  {
+    return nativeGetCategoryBookmarksColor(mId);
+  }
+
   public void setCategoryTracksCustomColor(@ColorInt int color)
   {
     nativeSetCategoryTracksCustomColor(mId, color);
@@ -251,6 +260,8 @@ public final class BookmarkCategory implements Parcelable
   private static native boolean nativeIsEmpty(long catId);
 
   private static native void nativeSetCategoryBookmarksColor(long catId, @ColorInt int color);
+  @ColorInt
+  private static native int nativeGetCategoryBookmarksColor(long catId);
   private static native void nativeSetCategoryTracksCustomColor(long catId, @ColorInt int color);
   private static native long nativeGetBookmarkIdByPosition(long catId, int position);
   private static native long nativeGetTrackIdByPosition(long catId, int position);
