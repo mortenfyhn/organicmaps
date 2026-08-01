@@ -149,6 +149,11 @@ sudo dnf install -y \
     freetype-devel \
     libicu-devel \
     libstdc++-devel \
+    libX11-devel \
+    libXcursor-devel \
+    libXi-devel \
+    libXinerama-devel \
+    libXrandr-devel \
     mesa-libGL-devel \
     libglvnd-devel \
     qt6-qtbase-devel \
