@@ -571,6 +571,56 @@ UNIT_TEST(Bookmarks_CustomColorAndLastEdited)
   TEST_EQUAL(bm2->GetData().m_color.m_rgba, customB.GetRGBA(), ());
 }
 
+UNIT_TEST(Bookmarks_CategoryBookmarksColor)
+{
+  ScopedBookmarksDir scopedDir;
+  Framework fm(kFrameworkParams);
+  df::VisualParams::Init(1.0, 1024);
+  BookmarkManager & bmManager = fm.GetBookmarkManager();
+  bmManager.EnableTestMode(true);
+
+  auto const colored = bmManager.CreateBookmarkCategory("colored", false /* autoSave */);
+  auto const plain = bmManager.CreateBookmarkCategory("plain", false /* autoSave */);
+
+  auto const listColor = dp::Color(10, 120, 240, 255);
+  bmManager.GetEditSession().SetCategoryBookmarksColor(colored, listColor);
+  {
+    auto const stored = kml::GetCategoryBookmarksColor(bmManager.GetCategoryData(colored).m_properties);
+    TEST(stored.has_value(), ());
+    TEST_EQUAL(*stored, listColor, ());
+  }
+  TEST(!kml::GetCategoryBookmarksColor(bmManager.GetCategoryData(plain).m_properties).has_value(), ());
+
+  auto const makeBookmark = [&bmManager](kml::MarkGroupId groupId, kml::ColorData color)
+  {
+    kml::BookmarkData bmData;
+    bmData.m_point = m2::PointD(27, 53);
+    bmData.m_color = color;
+    return bmManager.GetEditSession().CreateBookmark(std::move(bmData), groupId);
+  };
+
+  // A bookmark saved into a colored list takes the list's color, whatever color it was created with.
+  auto const * bm = makeBookmark(colored, {kml::PredefinedColor::Orange, 0});
+  TEST_EQUAL(bm->GetData().m_color, kml::MakeCustomBookmarkColorData(listColor), ());
+
+  // ...and doesn't drag that color into a list which has none of its own.
+  auto const * plainBm = makeBookmark(plain, {kml::PredefinedColor::Orange, 0});
+  TEST_EQUAL(plainBm->GetData().m_color, kml::ColorData(kml::PredefinedColor::Orange, 0), ());
+
+  // Moving into the colored list recolors.
+  auto const movedId = plainBm->GetId();
+  bmManager.GetEditSession().MoveBookmark(movedId, plain, colored);
+  TEST_EQUAL(bmManager.GetBookmark(movedId)->GetData().m_color, kml::MakeCustomBookmarkColorData(listColor), ());
+
+  // The list color is written to the file, so it survives a restart.
+  bmManager.SaveBookmarks({colored});
+  auto const data = LoadKmlFile(bmManager.GetCategoryFileName(colored), FileType::Kml);
+  TEST(data != nullptr, ());
+  auto const saved = kml::GetCategoryBookmarksColor(data->m_categoryData.m_properties);
+  TEST(saved.has_value(), ());
+  TEST_EQUAL(*saved, listColor, ());
+}
+
 UNIT_TEST(Bookmarks_Getting)
 {
   ScopedBookmarksDir scopedDir;

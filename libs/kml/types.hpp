@@ -11,6 +11,7 @@
 
 #include "drape/color.hpp"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -136,6 +137,16 @@ inline dp::Color ColorFromPredefinedColor(PredefinedColor color)
 }
 
 kml::PredefinedColor GetRandomPredefinedColor();
+
+// A list can define the color of the bookmarks it holds. It is kept in CategoryData::m_properties
+// rather than as a field of its own so that it round-trips through .kml and .kmb without a format
+// change, and so that builds without this feature just ignore it. The name says "bookmarks"
+// because a list also has a separate bulk color for its tracks.
+inline std::string const kCategoryBookmarksColorProperty = "bookmarksColor";
+
+// Returns nullopt when the list has no color of its own, which is the default.
+std::optional<dp::Color> GetCategoryBookmarksColor(Properties const & properties);
+std::string FormatCategoryBookmarksColor(dp::Color color);
 
 enum class AccessRules : uint8_t
 {

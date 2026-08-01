@@ -371,7 +371,21 @@ Bookmark * BookmarkManager::CreateBookmark(kml::BookmarkData && bmData, kml::Mar
   SetLastEditedBmCategory(groupId);
   SetLastEditedBmColor(bookmark->GetData().m_color);
 
+  // Applied after SetLastEditedBmColor so that a color inherited from a list doesn't leak into
+  // lists that have no color of their own.
+  ApplyCategoryBookmarksColor(bookmark->GetId(), groupId);
+
   return bookmark;
+}
+
+void BookmarkManager::ApplyCategoryBookmarksColor(kml::MarkId bmId, kml::MarkGroupId groupId)
+{
+  auto const * category = GetBmCategorySafe(groupId);
+  if (category == nullptr)
+    return;
+
+  if (auto const color = kml::GetCategoryBookmarksColor(category->GetCategoryData().m_properties))
+    GetBookmarkForEdit(bmId)->SetColor(*color);
 }
 
 Bookmark const * BookmarkManager::GetBookmark(kml::MarkId markId) const
@@ -2346,6 +2360,7 @@ void BookmarkManager::MoveBookmark(kml::MarkId bmID, kml::MarkGroupId curGroupID
   AttachBookmark(bmID, newGroupID);
 
   SetLastEditedBmCategory(newGroupID);
+  ApplyCategoryBookmarksColor(bmID, newGroupID);
 }
 
 void BookmarkManager::UpdateBookmark(kml::MarkId bmID, kml::BookmarkData const & bm)
@@ -3735,6 +3750,10 @@ void BookmarkManager::EditSession::SetCategoryBookmarksColor(kml::MarkGroupId gr
     if (auto * bm = m_bmManager.GetBookmarkForEdit(markId))
       bm->SetColor(color);
   m_bmManager.SetLastEditedBmColor(kml::MakeCustomBookmarkColorData(color));
+
+  // Remember the color so that bookmarks added to this list later get it too.
+  if (auto * category = m_bmManager.GetBmCategorySafe(groupId))
+    category->SetCustomProperty(kml::kCategoryBookmarksColorProperty, kml::FormatCategoryBookmarksColor(color));
 }
 
 void BookmarkManager::EditSession::SetCategoryTracksColor(kml::MarkGroupId groupId, dp::Color color)

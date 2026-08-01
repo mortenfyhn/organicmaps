@@ -571,6 +571,9 @@ private:
   Bookmark * CreateBookmark(kml::BookmarkData && bmData, kml::MarkGroupId groupId);
 
   Bookmark * GetBookmarkForEdit(kml::MarkId markId);
+  // Gives the bookmark the color of the list it now belongs to, if that list has one. Deliberately
+  // not called from AttachBookmark: imported bookmarks keep the colors their file gave them.
+  void ApplyCategoryBookmarksColor(kml::MarkId bmId, kml::MarkGroupId groupId);
   void AttachBookmark(kml::MarkId bmId, kml::MarkGroupId groupId);
   void DetachBookmark(kml::MarkId bmId, kml::MarkGroupId groupId);
   void DeleteBookmark(kml::MarkId bmId);

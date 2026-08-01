@@ -2,6 +2,9 @@
 
 #include "kml/minzoom_quadtree.hpp"
 
+#include "coding/hex.hpp"
+
+#include "base/logging.hpp"
 #include "base/macros.hpp"
 #include "base/random.hpp"
 #include "base/stl_helpers.hpp"
@@ -113,6 +116,26 @@ PredefinedColor GetRandomPredefinedColor()
 {
   thread_local base::UniformRandom<uint8_t> distr(1, std::to_underlying(PredefinedColor::Count) - 1);
   return static_cast<PredefinedColor>(distr());
+}
+
+std::optional<dp::Color> GetCategoryBookmarksColor(Properties const & properties)
+{
+  auto const it = properties.find(kCategoryBookmarksColorProperty);
+  if (it == properties.end())
+    return std::nullopt;
+
+  uint32_t rgba;
+  if (!strings::to_uint(it->second, rgba, 16))
+  {
+    LOG(LWARNING, ("Ignoring malformed", kCategoryBookmarksColorProperty, it->second));
+    return std::nullopt;
+  }
+  return dp::Color::FromRGBA(rgba);
+}
+
+std::string FormatCategoryBookmarksColor(dp::Color color)
+{
+  return NumToHex(ForceOpaqueRGBA(color));
 }
 
 }  // namespace kml
