@@ -101,6 +101,8 @@ private:
 
   CoverageResult m_lastCoverage;
   int m_lastCurrentZoomLevel = 0;
+  // Zoom level kept as a fallback under the current one while its tiles load. 0 means none.
+  int m_fallbackZoomLevel = 0;
 
   dp::RenderState m_state;
   dp::RenderState m_stateArray;

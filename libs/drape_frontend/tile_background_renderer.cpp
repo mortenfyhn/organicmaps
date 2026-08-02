@@ -21,6 +21,18 @@ bool IsInCoverage(TileKey const & tileKey, CoverageResult const & coverage, int 
   return static_cast<int>(tileKey.m_zoomLevel) == currentZoomLevel && tileKey.m_x >= coverage.m_minTileX &&
          tileKey.m_x < coverage.m_maxTileX && tileKey.m_y >= coverage.m_minTileY && tileKey.m_y < coverage.m_maxTileY;
 }
+
+// Global rect spanned by the coverage, used to test tiles from another zoom level against it.
+m2::RectD CoverageGlobalRect(CoverageResult const & coverage, int zoomLevel)
+{
+  if (coverage.m_maxTileX <= coverage.m_minTileX || coverage.m_maxTileY <= coverage.m_minTileY)
+    return {};
+
+  auto const zoom = static_cast<uint8_t>(zoomLevel);
+  m2::RectD rect = TileKey(coverage.m_minTileX, coverage.m_minTileY, zoom).GetGlobalRect(false /* clipByDataMaxZoom */);
+  rect.Add(TileKey(coverage.m_maxTileX - 1, coverage.m_maxTileY - 1, zoom).GetGlobalRect(false));
+  return rect;
+}
 }  // namespace
 
 TileBackgroundRenderer::TileBackgroundRenderer(
@@ -48,6 +60,13 @@ TileBackgroundRenderer::TileBackgroundRenderer(
 void TileBackgroundRenderer::OnUpdateViewport(ref_ptr<dp::GraphicsContext> context, CoverageResult const & coverage,
                                               int currentZoomLevel)
 {
+  // Retain the level we are leaving as a fallback, so its already-loaded tiles keep covering the
+  // screen while the new level's tiles are fetched. Without it the renderer has nothing to draw for
+  // the first frames after a zoom level crossing and the map background colour flashes through.
+  // Only the previous level is kept, so at most two levels are alive at any time.
+  if (currentZoomLevel != m_lastCurrentZoomLevel)
+    m_fallbackZoomLevel = m_lastCurrentZoomLevel;
+
   m_lastCoverage = coverage;
   m_lastCurrentZoomLevel = currentZoomLevel;
   if (m_currentMode == dp::BackgroundMode::Default)
@@ -72,16 +91,21 @@ void TileBackgroundRenderer::OnUpdateViewport(ref_ptr<dp::GraphicsContext> conte
     m_cancelTileBackgroundReadingFn(tileKey, m_currentMode);
   }
 
+  m2::RectD const coverageRect = CoverageGlobalRect(coverage, currentZoomLevel);
   for (auto it = m_tiles.begin(); it != m_tiles.end();)
   {
-    if (IsInCoverage(it->first, coverage, currentZoomLevel))
-    {
-      ++it;
-      continue;
-    }
-
     TileKey const tileKey = it->first;
     ++it;
+
+    if (IsInCoverage(tileKey, coverage, currentZoomLevel))
+      continue;
+
+    // Keep fallback tiles only while they still overlap the viewport, otherwise panning at a fixed
+    // zoom would pin their textures until the next zoom level crossing.
+    if (static_cast<int>(tileKey.m_zoomLevel) == m_fallbackZoomLevel &&
+        coverageRect.IsIntersect(tileKey.GetGlobalRect(false /* clipByDataMaxZoom */)))
+      continue;
+
     ReleaseTileBinding(context, tileKey);
   }
 
@@ -183,20 +207,9 @@ void TileBackgroundRenderer::SetTileBackgroundData(ref_ptr<dp::GraphicsContext> 
   m_tiles[tileKey] = TileBinding{imageUid, rect};
   AcquireImageRef(imageUid);
 
-  // Drop any tile bindings for stale zoom levels (mirrors the prior behavior).
-  auto it = m_tiles.begin();
-  while (it != m_tiles.end())
-  {
-    if (it->first.m_zoomLevel != tileKey.m_zoomLevel)
-    {
-      ReleaseImageRef(context, it->second.m_imageUid);
-      it = m_tiles.erase(it);
-    }
-    else
-    {
-      ++it;
-    }
-  }
+  // Tiles from the fallback zoom level are deliberately not dropped here: they stay until the next
+  // zoom level crossing replaces them, filling the gaps where the current level has not loaded yet.
+  // They are hidden anyway once the current level covers them, see the draw order in Render().
 }
 
 void TileBackgroundRenderer::AcquireImageRef(std::string const & uid)
@@ -276,6 +289,11 @@ void TileBackgroundRenderer::Render(ref_ptr<dp::GraphicsContext> context, ref_pt
 
   std::sort(m_sortedTiles.begin(), m_sortedTiles.end(), [](DrawEntry const & lhs, DrawEntry const & rhs)
   {
+    // Depth testing is off, so draw order is paint order: coarser tiles first puts the fallback
+    // level under the current one when zooming in, and the sharper leftovers on top when zooming out.
+    // Texture batching is the secondary key, which costs at most one extra batch per zoom level.
+    if (lhs.m_tileKey.m_zoomLevel != rhs.m_tileKey.m_zoomLevel)
+      return lhs.m_tileKey.m_zoomLevel < rhs.m_tileKey.m_zoomLevel;
     auto const lhsTex = lhs.m_image->m_texturePool->GetTexture(lhs.m_image->m_textureId);
     auto const rhsTex = rhs.m_image->m_texturePool->GetTexture(rhs.m_image->m_textureId);
     if (lhsTex == rhsTex)
@@ -353,6 +371,7 @@ void TileBackgroundRenderer::ClearContextDependentResources(ref_ptr<dp::Graphics
   m_images.clear();
   m_unreferencedLRU.clear();
   m_tiles.clear();
+  m_fallbackZoomLevel = 0;
 }
 
 void TileBackgroundRenderer::SetBackgroundMode(ref_ptr<dp::GraphicsContext> context, dp::BackgroundMode mode)
